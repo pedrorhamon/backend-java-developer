@@ -15,6 +15,10 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
+    clean-disabled: false
+    repair-on-migrate: true
   main:
     allow-circular-references: true
 

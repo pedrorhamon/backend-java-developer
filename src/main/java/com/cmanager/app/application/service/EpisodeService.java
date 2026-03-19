@@ -1,6 +1,7 @@
 package com.cmanager.app.application.service;
 
 import com.cmanager.app.application.data.SeasonAverageDTO;
+import com.cmanager.app.application.data.SeasonRatingProjection;
 import com.cmanager.app.application.repository.EpisodeRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
@@ -20,27 +21,31 @@ public class EpisodeService {
     }
 
     /**
-     * Calcula a média de rating por temporada de um show.
-     * - Ratings nulos são ignorados no cálculo
-     * - Se todos os ratings forem nulos → retorna 0 para a temporada
-     * - Se não houver episódios → lança EntityNotFoundException
+     * Calculates average episode ratings per season for a show.
+     * - Null ratings are ignored in the calculation
+     * - If all ratings are null → returns 0 for the season
+     * - If no episodes exist → throws EntityNotFoundException
+     *
+     * @param showId the unique identifier of the show
+     * @return list of season average DTOs sorted by season number
+     * @throws EntityNotFoundException if no episodes found for the show
      */
     @Transactional(readOnly = true)
     public List<SeasonAverageDTO> getAverageByShow(String showId) {
-        if (!episodeRepository.existsByShowId(showId)) {
+        final List<SeasonRatingProjection> projections =
+                episodeRepository.findAverageRatingBySeasonAndShowId(showId);
+
+        if (projections.isEmpty()) {
             throw new EntityNotFoundException("No episodes found for show: " + showId);
         }
 
-        final List<Object[]> rows = episodeRepository.findAverageRatingBySeasonAndShowId(showId);
-
-        return rows.stream()
-                .map(row -> {
-                    final Integer season = (Integer) row[0];
-                    final Double avg = (Double) row[1];
-                    final BigDecimal rating = (avg == null)
+        return projections.stream()
+                .map(projection -> {
+                    final BigDecimal rating = (projection.averageRating() == null)
                             ? BigDecimal.ZERO
-                            : BigDecimal.valueOf(avg).setScale(2, RoundingMode.HALF_UP);
-                    return new SeasonAverageDTO(season, rating);
+                            : BigDecimal.valueOf(projection.averageRating())
+                                    .setScale(2, RoundingMode.HALF_UP);
+                    return new SeasonAverageDTO(projection.season(), rating);
                 })
                 .toList();
     }

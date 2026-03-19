@@ -32,16 +32,37 @@ public class ShowService {
         this.requestService = requestService;
     }
 
-    @Transactional
+    /**
+     * Synchronizes a TV show from TVMaze API and persists it with its episodes.
+     * The external API call is made outside of the transaction to avoid
+     * holding a database transaction during network I/O.
+     *
+     * @param showName the name of the show to synchronize
+     * @return the persisted Show entity with episodes
+     * @throws EntityNotFoundException if the show is not found on TVMaze
+     * @throws AlreadyExistsException if the show already exists in the database
+     */
     public Show sync(String showName) {
+        // Fetch from external API outside transaction to avoid holding DB connection
         final ShowsRequestDTO dto = requestService.getShow(showName);
         if (dto == null) {
             throw new EntityNotFoundException("Show not found on TVMaze: " + showName);
         }
+
+        // Check for duplicates before entering transaction
         if (showRepository.existsByIdIntegration(dto.id())) {
             throw new AlreadyExistsException("Show", dto.name());
         }
 
+        // Extract episodes with null safety
+        final List<EpisodeRequestDTO> episodeDTOs = extractEpisodes(dto);
+
+        // Persist within transaction
+        return persistShow(dto, episodeDTOs);
+    }
+
+    @Transactional
+    protected Show persistShow(ShowsRequestDTO dto, List<EpisodeRequestDTO> episodeDTOs) {
         final Show show = new Show();
         show.setIdIntegration(dto.id());
         show.setName(dto.name());
@@ -56,19 +77,24 @@ public class ShowService {
 
         final Show saved = showRepository.save(show);
 
-        final List<EpisodeRequestDTO> episodeDTOs = (dto._embedded() != null && dto._embedded().episodes() != null)
-                ? dto._embedded().episodes()
-                : Collections.emptyList();
-
-        final List<Episode> episodes = episodeDTOs.stream()
-                .map(e -> toEpisode(e, saved))
-                .toList();
-
-        if (!episodes.isEmpty()) {
+        if (!episodeDTOs.isEmpty()) {
+            final List<Episode> episodes = episodeDTOs.stream()
+                    .map(e -> toEpisode(e, saved))
+                    .toList();
             episodeRepository.saveAll(episodes);
         }
 
         return saved;
+    }
+
+    /**
+     * Safely extracts episodes from the external API response with null checks.
+     */
+    private List<EpisodeRequestDTO> extractEpisodes(ShowsRequestDTO dto) {
+        if (dto._embedded() == null || dto._embedded().episodes() == null) {
+            return Collections.emptyList();
+        }
+        return dto._embedded().episodes();
     }
 
     @Transactional(readOnly = true)

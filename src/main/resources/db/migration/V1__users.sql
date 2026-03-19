@@ -1,4 +1,8 @@
-CREATE TYPE role_enum AS ENUM ('ADMIN', 'USER');
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'role_enum') THEN
+    CREATE TYPE role_enum AS ENUM ('ADMIN', 'USER');
+  END IF;
+END $$;
 
 CREATE TABLE users (
   id VARCHAR(36) PRIMARY KEY,
@@ -27,7 +31,7 @@ INSERT INTO users (id,username, password, role, enabled)
 VALUES (
   '08b5a3a9-8874-4fd7-b79a-45c877a65f6e',
   'admin',
-  '$2a$10$JXZFFAfBRw38kKLQ13Hm0eSn1MzYSpixE8Ble9paV4tHOFgbPQKhW',
+  '$2a$10$OMyDYOcnjdO1cC/cbnqLyemYfqIdPw9elO.LSYOL6NGrt8gom98ei',
   'ADMIN',
   TRUE
 ) ON CONFLICT DO NOTHING;

@@ -12,7 +12,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -20,7 +19,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("EpisodeService - Testes Unitários")
 class EpisodeServiceTest {
 
     @Mock
@@ -30,69 +28,64 @@ class EpisodeServiceTest {
     private EpisodeService episodeService;
 
     @Test
-    @DisplayName("getAverageByShow() lança EntityNotFoundException quando não há episódios")
-    void getAverage_noEpisodes_throws() {
-        final String showId = "show-sem-episodios";
-        when(episodeRepository.existsByShowId(showId)).thenReturn(false);
+    @DisplayName("Deve lancar EntityNotFoundException quando nao ha episodios para o show")
+    void shouldThrowWhenNoEpisodes() {
+        when(episodeRepository.existsByShowId("show-1")).thenReturn(false);
 
-        assertThatThrownBy(() -> episodeService.getAverageByShow(showId))
+        assertThatThrownBy(() -> episodeService.getAverageByShow("show-1"))
                 .isInstanceOf(EntityNotFoundException.class)
-                .hasMessageContaining(showId);
+                .hasMessageContaining("show-1");
     }
 
     @Test
-    @DisplayName("getAverageByShow() retorna 0 quando todos os ratings são nulos")
-    void getAverage_allNullRatings_returnsZero() {
-        final String showId = "show-sem-rating";
-        when(episodeRepository.existsByShowId(showId)).thenReturn(true);
-        // AVG retorna null quando todos os valores são NULL no SQL
-        when(episodeRepository.findAverageRatingBySeasonAndShowId(showId))
-                .thenReturn(List.of(new Object[]{1, null}, new Object[]{2, null}));
+    @DisplayName("Deve retornar 0 quando todos os ratings de uma temporada sao nulos")
+    void shouldReturnZeroWhenAllRatingsNull() {
+        when(episodeRepository.existsByShowId("show-2")).thenReturn(true);
+        when(episodeRepository.findAverageRatingBySeasonAndShowId("show-2"))
+                .thenReturn(List.of(new Object[]{1, null}));
 
-        final List<SeasonAverageDTO> result = episodeService.getAverageByShow(showId);
+        List<SeasonAverageDTO> result = episodeService.getAverageByShow("show-2");
 
-        assertThat(result).hasSize(2);
+        assertThat(result).hasSize(1);
         assertThat(result.get(0).season()).isEqualTo(1);
         assertThat(result.get(0).averageRating()).isEqualByComparingTo(BigDecimal.ZERO);
-        assertThat(result.get(1).season()).isEqualTo(2);
-        assertThat(result.get(1).averageRating()).isEqualByComparingTo(BigDecimal.ZERO);
     }
 
     @Test
-    @DisplayName("getAverageByShow() calcula média corretamente por temporada")
-    void getAverage_validRatings_returnsCorrectAverage() {
-        final String showId = "show-com-rating";
-        when(episodeRepository.existsByShowId(showId)).thenReturn(true);
-        when(episodeRepository.findAverageRatingBySeasonAndShowId(showId))
+    @DisplayName("Deve calcular media correta por temporada ignorando nulls")
+    void shouldCalculateCorrectAveragePerSeason() {
+        when(episodeRepository.existsByShowId("show-3")).thenReturn(true);
+        when(episodeRepository.findAverageRatingBySeasonAndShowId("show-3"))
                 .thenReturn(List.of(
                         new Object[]{1, 8.5},
                         new Object[]{2, 7.333333333}
                 ));
 
-        final List<SeasonAverageDTO> result = episodeService.getAverageByShow(showId);
+        List<SeasonAverageDTO> result = episodeService.getAverageByShow("show-3");
 
         assertThat(result).hasSize(2);
         assertThat(result.get(0).season()).isEqualTo(1);
-        assertThat(result.get(0).averageRating())
-                .isEqualByComparingTo(BigDecimal.valueOf(8.5).setScale(2, RoundingMode.HALF_UP));
+        assertThat(result.get(0).averageRating()).isEqualByComparingTo(new BigDecimal("8.50"));
         assertThat(result.get(1).season()).isEqualTo(2);
-        assertThat(result.get(1).averageRating())
-                .isEqualByComparingTo(BigDecimal.valueOf(7.33).setScale(2, RoundingMode.HALF_UP));
+        assertThat(result.get(1).averageRating()).isEqualByComparingTo(new BigDecimal("7.33"));
     }
 
     @Test
-    @DisplayName("getAverageByShow() ignora ratings nulos e calcula média dos demais na temporada")
-    void getAverage_mixedNullAndValidRatings_calculatesPartialAverage() {
-        final String showId = "show-mixed";
-        when(episodeRepository.existsByShowId(showId)).thenReturn(true);
-        // SQL AVG ignora NULLs automaticamente — aqui simula o resultado já calculado
-        when(episodeRepository.findAverageRatingBySeasonAndShowId(showId))
-                .thenReturn(List.of(new Object[]{1, 9.0})); // Ex.: 2 episódios com rating, 1 sem
+    @DisplayName("Deve retornar zero para temporada com todos ratings nulos em mix com validos")
+    void shouldReturnZeroForNullSeasonsWithinMix() {
+        when(episodeRepository.existsByShowId("show-4")).thenReturn(true);
+        when(episodeRepository.findAverageRatingBySeasonAndShowId("show-4"))
+                .thenReturn(List.of(
+                        new Object[]{1, 9.0},
+                        new Object[]{2, null},
+                        new Object[]{3, 8.25}
+                ));
 
-        final List<SeasonAverageDTO> result = episodeService.getAverageByShow(showId);
+        List<SeasonAverageDTO> result = episodeService.getAverageByShow("show-4");
 
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).averageRating())
-                .isEqualByComparingTo(BigDecimal.valueOf(9.00).setScale(2, RoundingMode.HALF_UP));
+        assertThat(result).hasSize(3);
+        assertThat(result.get(0).averageRating()).isEqualByComparingTo(new BigDecimal("9.00"));
+        assertThat(result.get(1).averageRating()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(result.get(2).averageRating()).isEqualByComparingTo(new BigDecimal("8.25"));
     }
 }

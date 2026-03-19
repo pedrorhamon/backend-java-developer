@@ -1,4 +1,4 @@
-CREATE TABLE SHOW
+CREATE TABLE IF NOT EXISTS SHOW
 (
     id             VARCHAR(36) PRIMARY KEY,
     id_integration integer NOT NULL UNIQUE,

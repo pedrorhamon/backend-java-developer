@@ -1,4 +1,4 @@
-CREATE TABLE episode
+CREATE TABLE IF NOT EXISTS episode
 (
     id             VARCHAR(36) PRIMARY KEY,
     id_integration INTEGER     NOT NULL,
