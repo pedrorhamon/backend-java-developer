@@ -89,6 +89,7 @@ public class UserController {
             }
     )
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserDTO> create(@RequestBody @Valid UserCreateRequest req) {
         final UserDTO dto = UserDTO.convertEntity(userService.create(req));
         return ResponseEntity.created(URI.create("/api/users/" + dto.id())).body(dto);

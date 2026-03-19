@@ -1,6 +1,7 @@
 package com.cmanager.app.integration.client;
 
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -14,6 +15,6 @@ public class AbstractRequest<T> {
     }
 
     public T getShow(String url, ParameterizedTypeReference<T> typeReference) {
-        return null;
+        return restTemplate.exchange(url, HttpMethod.GET, null, typeReference).getBody();
     }
 }

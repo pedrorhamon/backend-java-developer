@@ -1,15 +1,12 @@
 package com.cmanager.app.integration.dto;
 
-import com.cmanager.app.authentication.data.UserDTO;
-import com.cmanager.app.authentication.domain.User;
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
-@Schema(name = "ShowsDTO", description = "Objeto da representação de Shows")
+@Schema(name = "EpisodeRequestDTO", description = "Objeto da representação de Episódio da API externa")
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record EpisodeRequestDTO(
         @JsonProperty("id")
@@ -35,8 +32,7 @@ public record EpisodeRequestDTO(
         String airtime,
         @JsonProperty("airstamp")
         @Schema(name = "airstamp", description = "Airstamp")
-        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")
-        LocalDateTime airstamp,
+        OffsetDateTime airstamp,
         @JsonProperty("runtime")
         @Schema(name = "runtime", description = "Duração")
         Integer runtime,
@@ -47,7 +43,4 @@ public record EpisodeRequestDTO(
         @Schema(name = "summary", description = "Resumo")
         String summary
 ) {
-    public static UserDTO convertEntity(User u) {
-        return new UserDTO(u.getId(), u.getUsername(), u.getRole(), u.isEnabled());
-    }
 }
