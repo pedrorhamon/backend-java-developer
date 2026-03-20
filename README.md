@@ -30,7 +30,13 @@ API REST para gerenciamento e sincronização de TV Shows, construída com **Jav
 docker compose up --build
 ```
 
-A aplicação sobe na porta **9012** e o banco PostgreSQL na porta **5432**.
+Serviços iniciados:
+
+| Serviço          | Porta | Banco        | Papel                         |
+|------------------|-------|--------------|-------------------------------|
+| `db`             | 5432  | `meubanco`   | Banco principal (PRIMARY)     |
+| `db-fallback`    | 5433  | `meubanco2`  | Banco reserva (FALLBACK)      |
+| `myapp`          | 9012  | —            | Aplicação Spring Boot         |
 
 ### 2. Acessar Swagger UI
 
@@ -44,10 +50,14 @@ http://localhost:9012/swagger-ui.html
 
 ### Pré-requisitos
 - Java 25+
-- PostgreSQL 16 rodando localmente (banco: `meubanco`, porta `5432`)
+- PostgreSQL 16 rodando localmente nas portas `5432` (primary) e `5433` (fallback)
 
 ```sql
+-- banco principal
 CREATE DATABASE meubanco;
+
+-- banco fallback (opcional — app sobe com primary se este estiver fora)
+CREATE DATABASE meubanco2;
 ```
 
 ### Rodar
@@ -56,17 +66,20 @@ CREATE DATABASE meubanco;
 ./mvnw spring-boot:run
 ```
 
-O Flyway criará as tabelas automaticamente (V1, V2, V3).
+O Flyway criará as tabelas automaticamente em ambos os bancos (V1–V5).
 
 ---
 
 ## Credenciais padrão
 
-| Campo   | Valor   |
-|---------|---------|
-| Usuário | `admin` |
-| Senha   | `admin` |
-| Role    | `ADMIN` |
+Dois usuários são criados automaticamente pelo Flyway:
+
+| Usuário | Senha   | Role    | Permissões                                          |
+|---------|---------|---------|-----------------------------------------------------|
+| `admin` | `admin` | `ADMIN` | Acesso total a todos os endpoints                   |
+| `user`  | `user`  | `USER`  | Leitura de shows e episódios; **não** pode sincronizar (`POST /api/shows` → 403) |
+
+> Hashes BCrypt gerados com strength 10. Para criar outros usuários use `POST /api/users` autenticado como ADMIN.
 
 ---
 
@@ -141,13 +154,30 @@ curl "http://localhost:9012/api/episodes/average?showId=<SHOW_ID>" \
 
 ---
 
+## Alta disponibilidade — Datasource com Fallback
+
+A aplicação possui roteamento automático de banco de dados usando `AbstractRoutingDataSource`:
+
+- **Startup:** ao iniciar, verifica se o banco PRIMARY está disponível. Se não estiver, roteia automaticamente para o FALLBACK — a aplicação sobe normalmente
+- **Health check:** a cada **30 segundos** (configurável via `app.datasource.health-check-interval-ms`) o banco PRIMARY é verificado
+- **Recuperação automática:** quando o PRIMARY volta, o tráfego é redirecionado de volta sem restart
+- **Flyway:** as migrations são executadas em ambos os bancos na inicialização; falha no PRIMARY não impede o startup se o FALLBACK estiver disponível
+
+```
+PRIMARY (5432) ONLINE  → toda requisição vai para o PRIMARY
+PRIMARY (5432) OFFLINE → toda requisição vai para o FALLBACK (5433)
+PRIMARY (5432) ONLINE  → retorna automaticamente para o PRIMARY
+```
+
+---
+
 ## Regras de negócio
 
-- `POST /api/shows` — apenas `ADMIN`
+- `POST /api/shows` — apenas `ADMIN`; role `USER` recebe `403 Forbidden`
 - Duplicatas evitadas pelo `id_integration` (ID do TVMaze)
 - Ratings `null` são ignorados no cálculo da média; se todos forem `null` → retorna `0`
 - Sem episódios para o show → `404 Not Found`
-- Perfil `USER` não pode sincronizar shows (`403 Forbidden`)
+- Roles no JWT usam prefixo `ROLE_` (`ROLE_ADMIN`, `ROLE_USER`) — compatível com `hasRole()` do Spring Security
 
 ---
 
@@ -187,7 +217,16 @@ src/main/java/com/cmanager/app/
     └── dto/          ShowsRequestDTO, EpisodeRequestDTO, RatingDTO
 
 src/main/resources/db/migration/
-├── V1__users.sql    tabela users + admin seed
-├── V2__show.sql     tabela show
-└── V3__episode.sql  tabela episode
+├── V1__users.sql          tabela users + seed admin (admin/admin)
+├── V2__show.sql           tabela show
+├── V3__episode.sql        tabela episode
+├── V4__add_database_indexes.sql  índices de performance
+└── V5__seed_user.sql      seed usuário padrão (user/user, role USER)
+
+src/main/java/com/cmanager/app/core/datasource/
+├── DataSourceConfig.java        configura pools PRIMARY e FALLBACK (HikariCP)
+├── RoutingDataSource.java       AbstractRoutingDataSource com troca thread-safe
+├── DataSourceHealthChecker.java health check agendado + verificação no startup
+├── DataSourceKey.java           enum PRIMARY | FALLBACK
+└── FlywayConfig.java            migra ambos os bancos na inicialização
 ```
