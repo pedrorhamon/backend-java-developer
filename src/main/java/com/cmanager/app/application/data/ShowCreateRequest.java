@@ -10,7 +10,7 @@ import jakarta.validation.constraints.Size;
 public record ShowCreateRequest(
         @NotBlank
         @Size(min = 1, max = 265)
-        @Schema(name = "name", description = "Nome da disciplina")
+        @Schema(name = "name", description = "Nome do show a ser sincronizado com o TVMaze")
         String name
 ) {
 }
