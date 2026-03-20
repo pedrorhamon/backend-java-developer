@@ -4,6 +4,8 @@ import com.cmanager.app.application.data.SeasonAverageDTO;
 import com.cmanager.app.application.data.SeasonRatingProjection;
 import com.cmanager.app.application.repository.EpisodeRepository;
 import jakarta.persistence.EntityNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,6 +15,8 @@ import java.util.List;
 
 @Service
 public class EpisodeService {
+
+    private static final Logger log = LoggerFactory.getLogger(EpisodeService.class);
 
     private final EpisodeRepository episodeRepository;
 
@@ -32,14 +36,17 @@ public class EpisodeService {
      */
     @Transactional(readOnly = true)
     public List<SeasonAverageDTO> getAverageByShow(String showId) {
+        log.debug("[EpisodeService] Calculating season averages for showId={}", showId);
+
         final List<SeasonRatingProjection> projections =
                 episodeRepository.findAverageRatingBySeasonAndShowId(showId);
 
         if (projections.isEmpty()) {
+            log.warn("[EpisodeService] No episodes found for showId={}", showId);
             throw new EntityNotFoundException("No episodes found for show: " + showId);
         }
 
-        return projections.stream()
+        final List<SeasonAverageDTO> result = projections.stream()
                 .map(projection -> {
                     final BigDecimal rating = (projection.averageRating() == null)
                             ? BigDecimal.ZERO
@@ -48,5 +55,8 @@ public class EpisodeService {
                     return new SeasonAverageDTO(projection.season(), rating);
                 })
                 .toList();
+
+        log.debug("[EpisodeService] Season averages calculated — showId={}, seasons={}", showId, result.size());
+        return result;
     }
 }
