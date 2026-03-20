@@ -1,6 +1,7 @@
 package com.cmanager.app.service;
 
 import com.cmanager.app.application.data.SeasonAverageDTO;
+import com.cmanager.app.application.data.SeasonRatingProjection;
 import com.cmanager.app.application.repository.EpisodeRepository;
 import com.cmanager.app.application.service.EpisodeService;
 import jakarta.persistence.EntityNotFoundException;
@@ -30,7 +31,8 @@ class EpisodeServiceTest {
     @Test
     @DisplayName("Deve lancar EntityNotFoundException quando nao ha episodios para o show")
     void shouldThrowWhenNoEpisodes() {
-        when(episodeRepository.existsByShowId("show-1")).thenReturn(false);
+        when(episodeRepository.findAverageRatingBySeasonAndShowId("show-1"))
+                .thenReturn(List.of());
 
         assertThatThrownBy(() -> episodeService.getAverageByShow("show-1"))
                 .isInstanceOf(EntityNotFoundException.class)
@@ -40,9 +42,8 @@ class EpisodeServiceTest {
     @Test
     @DisplayName("Deve retornar 0 quando todos os ratings de uma temporada sao nulos")
     void shouldReturnZeroWhenAllRatingsNull() {
-        when(episodeRepository.existsByShowId("show-2")).thenReturn(true);
         when(episodeRepository.findAverageRatingBySeasonAndShowId("show-2"))
-                .thenReturn(List.of(new Object[]{1, null}));
+                .thenReturn(List.of(new SeasonRatingProjection(1, null)));
 
         List<SeasonAverageDTO> result = episodeService.getAverageByShow("show-2");
 
@@ -54,11 +55,10 @@ class EpisodeServiceTest {
     @Test
     @DisplayName("Deve calcular media correta por temporada ignorando nulls")
     void shouldCalculateCorrectAveragePerSeason() {
-        when(episodeRepository.existsByShowId("show-3")).thenReturn(true);
         when(episodeRepository.findAverageRatingBySeasonAndShowId("show-3"))
                 .thenReturn(List.of(
-                        new Object[]{1, 8.5},
-                        new Object[]{2, 7.333333333}
+                        new SeasonRatingProjection(1, 8.5),
+                        new SeasonRatingProjection(2, 7.333333333)
                 ));
 
         List<SeasonAverageDTO> result = episodeService.getAverageByShow("show-3");
@@ -73,12 +73,11 @@ class EpisodeServiceTest {
     @Test
     @DisplayName("Deve retornar zero para temporada com todos ratings nulos em mix com validos")
     void shouldReturnZeroForNullSeasonsWithinMix() {
-        when(episodeRepository.existsByShowId("show-4")).thenReturn(true);
         when(episodeRepository.findAverageRatingBySeasonAndShowId("show-4"))
                 .thenReturn(List.of(
-                        new Object[]{1, 9.0},
-                        new Object[]{2, null},
-                        new Object[]{3, 8.25}
+                        new SeasonRatingProjection(1, 9.0),
+                        new SeasonRatingProjection(2, null),
+                        new SeasonRatingProjection(3, 8.25)
                 ));
 
         List<SeasonAverageDTO> result = episodeService.getAverageByShow("show-4");
