@@ -20,6 +20,24 @@ services:
       retries: 5
     restart: unless-stopped
 
+  db-fallback:
+    image: postgres:16-alpine
+    container_name: tvshow-db-fallback
+    environment:
+      POSTGRES_DB: meubanco2
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata_fallback:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d meubanco2"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   myapp:
     build:
       context: .
@@ -30,13 +48,19 @@ services:
       - "9012:9012"
     environment:
       SPRING_PROFILES_ACTIVE: dev
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/meubanco
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
+      DATASOURCE_URL: jdbc:postgresql://db:5432/meubanco
+      DATASOURCE_USERNAME: postgres
+      DATASOURCE_PASSWORD: postgres
+      DATASOURCE_FALLBACK_URL: jdbc:postgresql://db-fallback:5432/meubanco2
+      DATASOURCE_FALLBACK_USERNAME: postgres
+      DATASOURCE_FALLBACK_PASSWORD: postgres
     depends_on:
       db:
+        condition: service_healthy
+      db-fallback:
         condition: service_healthy
     restart: unless-stopped
 
 volumes:
   pgdata:
+  pgdata_fallback:
