@@ -3,14 +3,20 @@ FROM eclipse-temurin:25-jdk-alpine AS build
 
 WORKDIR /app
 
-# Copia o wrapper e pom primeiro (cache de dependências)
-COPY .mvn/ .mvn/
-COPY mvnw pom.xml ./
-RUN chmod +x mvnw && ./mvnw dependency:go-offline -q
+# Instala Maven diretamente — sem depender do mvnw ou da pasta .mvn/
+ARG MAVEN_VERSION=3.9.9
+RUN apk add --no-cache curl tar && \
+    curl -fsSL https://downloads.apache.org/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz \
+    | tar -xz -C /opt && \
+    ln -s /opt/apache-maven-${MAVEN_VERSION}/bin/mvn /usr/local/bin/mvn
+
+# Copia apenas o pom primeiro para aproveitar o cache de dependências
+COPY pom.xml ./
+RUN mvn dependency:go-offline -q
 
 # Copia o código-fonte e faz o build
 COPY src/ src/
-RUN ./mvnw package -DskipTests -q
+RUN mvn package -DskipTests -q
 
 # ── Stage 2: Runtime leve ─────────────────────────────────────────────
 FROM eclipse-temurin:25-jre-alpine
