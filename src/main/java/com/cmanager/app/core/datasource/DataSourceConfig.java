@@ -2,6 +2,8 @@ package com.cmanager.app.core.datasource;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -10,6 +12,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 import javax.sql.DataSource;
+import java.sql.Connection;
 import java.util.Map;
 
 /**
@@ -19,6 +22,8 @@ import java.util.Map;
 @Configuration
 @EnableScheduling
 public class DataSourceConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(DataSourceConfig.class);
 
     // ── Primary (PostgreSQL principal) ──────────────────────────────────────
     @Value("${spring.datasource.url}")
@@ -78,7 +83,28 @@ public class DataSourceConfig {
         ));
         routing.setDefaultTargetDataSource(primary);
         routing.afterPropertiesSet();
+
+        // Eagerly check primary before Hibernate's EntityManagerFactory is initialised.
+        // If primary is down, route to FALLBACK now so that Hibernate gets a live connection
+        // for dialect detection and schema validation — without this, startup fails even with
+        // initializationFailTimeout=-1, because AbstractRoutingDataSource still delegates to PRIMARY.
+        if (!isReachable(primary)) {
+            log.warn("[DataSource] Primary unreachable at startup — routing to FALLBACK");
+            routing.useFallback();
+        } else {
+            log.info("[DataSource] Primary reachable — routing to PRIMARY");
+        }
+
         return routing;
+    }
+
+    private boolean isReachable(DataSource dataSource) {
+        try (Connection conn = dataSource.getConnection()) {
+            return conn.isValid(3);
+        } catch (Exception e) {
+            log.warn("[DataSource] Reachability check failed: {}", e.getMessage());
+            return false;
+        }
     }
 
     private DataSource buildHikari(String url, String username, String password,

@@ -63,11 +63,9 @@ public class FlywayConfig {
                     .migrate();
             log.info("[Flyway] Migrations on {} completed successfully.", name);
         } catch (Exception e) {
-            log.error("[Flyway] Failed to migrate {} datasource: {}", name, e.getMessage());
-            // Não falha o startup se o fallback não estiver disponível
-            if ("PRIMARY".equals(name)) {
-                throw e; // Primary é obrigatório
-            }
+            // Neither datasource is mandatory at startup — the health checker decides routing.
+            // A down primary is tolerable: the app boots on FALLBACK and switches back automatically.
+            log.error("[Flyway] Failed to migrate {} datasource — it may be unreachable: {}", name, e.getMessage());
         }
     }
 }
