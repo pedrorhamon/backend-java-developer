@@ -1,8 +1,6 @@
 package com.cmanager.app.application.service;
 
-import com.cmanager.app.application.domain.Episode;
 import com.cmanager.app.application.domain.Show;
-import com.cmanager.app.application.repository.EpisodeRepository;
 import com.cmanager.app.application.repository.ShowRepository;
 import com.cmanager.app.core.exception.AlreadyExistsException;
 import com.cmanager.app.integration.client.RequestService;
@@ -25,14 +23,14 @@ public class ShowService {
     private static final Logger log = LoggerFactory.getLogger(ShowService.class);
 
     private final ShowRepository showRepository;
-    private final EpisodeRepository episodeRepository;
+    private final ShowPersistenceService showPersistenceService;
     private final RequestService requestService;
 
     public ShowService(ShowRepository showRepository,
-                       EpisodeRepository episodeRepository,
+                       ShowPersistenceService showPersistenceService,
                        RequestService requestService) {
         this.showRepository = showRepository;
-        this.episodeRepository = episodeRepository;
+        this.showPersistenceService = showPersistenceService;
         this.requestService = requestService;
     }
 
@@ -51,10 +49,6 @@ public class ShowService {
 
         // Fetch from external API outside transaction to avoid holding DB connection
         final ShowsRequestDTO dto = requestService.getShow(showName);
-        if (dto == null) {
-            log.warn("[ShowService] Show '{}' not found on TVMaze", showName);
-            throw new EntityNotFoundException("Show not found on TVMaze: " + showName);
-        }
         log.debug("[ShowService] TVMaze response received — id={}, name='{}'", dto.id(), dto.name());
 
         // Check for duplicates before entering transaction
@@ -67,41 +61,9 @@ public class ShowService {
         final List<EpisodeRequestDTO> episodeDTOs = extractEpisodes(dto);
         log.debug("[ShowService] {} episode(s) extracted from TVMaze response", episodeDTOs.size());
 
-        // Persist within transaction
-        final Show saved = persistShow(dto, episodeDTOs);
+        // Persist within transaction — delegated to separate bean so @Transactional proxy is honoured
+        final Show saved = showPersistenceService.persist(dto, episodeDTOs);
         log.info("[ShowService] Show '{}' synced successfully — showId={}, episodes={}", saved.getName(), saved.getId(), episodeDTOs.size());
-        return saved;
-    }
-
-    @Transactional
-    protected Show persistShow(ShowsRequestDTO dto, List<EpisodeRequestDTO> episodeDTOs) {
-        log.debug("[ShowService] Persisting show '{}' within transaction", dto.name());
-
-        final Show show = new Show();
-        show.setIdIntegration(dto.id());
-        show.setName(dto.name());
-        show.setType(dto.type());
-        show.setLanguage(dto.language());
-        show.setStatus(dto.status());
-        show.setRuntime(dto.runtime());
-        show.setAverageRuntime(dto.averageRuntime());
-        show.setOfficialSite(dto.officialSite());
-        show.setRating(dto.rating() != null ? dto.rating().average() : null);
-        show.setSummary(dto.summary());
-
-        final Show saved = showRepository.save(show);
-        log.debug("[ShowService] Show entity saved — showId={}", saved.getId());
-
-        if (!episodeDTOs.isEmpty()) {
-            final List<Episode> episodes = episodeDTOs.stream()
-                    .map(e -> toEpisode(e, saved))
-                    .toList();
-            episodeRepository.saveAll(episodes);
-            log.debug("[ShowService] {} episode(s) saved for showId={}", episodes.size(), saved.getId());
-        } else {
-            log.debug("[ShowService] No episodes to persist for showId={}", saved.getId());
-        }
-
         return saved;
     }
 
@@ -133,20 +95,4 @@ public class ShowService {
                 });
     }
 
-    private Episode toEpisode(EpisodeRequestDTO dto, Show show) {
-        final Episode episode = new Episode();
-        episode.setIdIntegration(dto.id());
-        episode.setShow(show);
-        episode.setName(dto.name());
-        episode.setSeason(dto.season());
-        episode.setNumber(dto.number());
-        episode.setType(dto.type());
-        episode.setAirdate(dto.airdate());
-        episode.setAirtime(dto.airtime());
-        episode.setAirstamp(dto.airstamp());
-        episode.setRuntime(dto.runtime());
-        episode.setRating(dto.rating() != null ? dto.rating().average() : null);
-        episode.setSummary(dto.summary());
-        return episode;
-    }
 }

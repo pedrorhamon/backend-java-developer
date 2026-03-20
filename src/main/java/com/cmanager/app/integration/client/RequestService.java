@@ -5,6 +5,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+
 @Service
 public class RequestService {
 
@@ -19,7 +22,8 @@ public class RequestService {
     }
 
     public ShowsRequestDTO getShow(String showName) {
-        final var url = String.format(tvMazeUrl, showName);
+        final var encoded = URLEncoder.encode(showName, StandardCharsets.UTF_8);
+        final var url = String.format(tvMazeUrl, encoded);
         return abstractConnect.getShow(url, new ParameterizedTypeReference<>() {
         });
     }
