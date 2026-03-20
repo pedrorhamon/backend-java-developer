@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/meubanco
-    username: postgres
-    password: postgres
+    url: ${DATASOURCE_URL:jdbc:postgresql://localhost:5432/meubanco}
+    username: ${DATASOURCE_USERNAME:postgres}
+    password: ${DATASOURCE_PASSWORD:postgres}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -23,10 +23,19 @@ spring:
     allow-circular-references: true
 
 app:
+  datasource:
+    fallback:
+      url: ${DATASOURCE_FALLBACK_URL:jdbc:postgresql://localhost:5433/meubanco2}
+      username: ${DATASOURCE_FALLBACK_USERNAME:postgres}
+      password: ${DATASOURCE_FALLBACK_PASSWORD:postgres}
+      driver-class-name: org.postgresql.Driver
+    health-check-interval-ms: 30000
   jwt:
-    issuer: example-auth
-    expiration-minutes: 120
-    secret: "change-me-in-prod-please-32-bytes-minimum-aaaaaaaaaaaaaa"
+    issuer: ${JWT_ISSUER:example-auth}
+    expiration-minutes: ${JWT_EXPIRATION_MINUTES:120}
+    secret: ${JWT_SECRET:change-me-in-prod-please-32-bytes-minimum-aaaaaaaaaaaaaa}
+  tvmaze:
+    url: ${TVMAZE_URL:https://api.tvmaze.com/singlesearch/shows?q=%s&embed=episodes}
 
 logging:
   level:

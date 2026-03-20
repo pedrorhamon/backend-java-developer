@@ -1,0 +1,43 @@
+spring:
+  datasource:
+    url: ${DATASOURCE_URL}
+    username: ${DATASOURCE_USERNAME}
+    password: ${DATASOURCE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          time_zone: UTC
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+    clean-disabled: true
+    repair-on-migrate: false
+  main:
+    allow-circular-references: true
+
+app:
+  datasource:
+    fallback:
+      url: ${DATASOURCE_FALLBACK_URL}
+      username: ${DATASOURCE_FALLBACK_USERNAME}
+      password: ${DATASOURCE_FALLBACK_PASSWORD}
+      driver-class-name: ${DATASOURCE_FALLBACK_DRIVER:org.postgresql.Driver}
+    health-check-interval-ms: 15000
+  jwt:
+    issuer: ${JWT_ISSUER}
+    expiration-minutes: ${JWT_EXPIRATION_MINUTES:30}
+    secret: ${JWT_SECRET}
+  tvmaze:
+    url: ${TVMAZE_URL:https://api.tvmaze.com/singlesearch/shows?q=%s&embed=episodes}
+
+logging:
+  level:
+    root: ERROR
+    org.springframework.security: ERROR
+    org.hibernate.SQL: ERROR
